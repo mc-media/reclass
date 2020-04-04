@@ -79,7 +79,12 @@ def cli():
             else:
                 groups.update(apps)
 
+            hostvars = {}
+            for (node, node_data) in data['nodes'].iteritems():
+                hostvars[node] = node_data['parameters']
+
             data = groups
+            data['_meta'] = {'hostvars': hostvars}
 
         print output(data, options.output, options.pretty_print)
 
