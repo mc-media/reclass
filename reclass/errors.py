@@ -6,22 +6,34 @@
 # Copyright © 2007–14 martin f. krafft <madduck@madduck.net>
 # Released under the terms of the Artistic Licence 2.0
 #
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
 import posix, sys
 import traceback
 
-from reclass.defaults import PARAMETER_INTERPOLATION_SENTINELS
+from reclass.defaults import REFERENCE_SENTINELS, EXPORT_SENTINELS
+from reclass.utils.dictpath import DictPath
 
 class ReclassException(Exception):
 
-    def __init__(self, rc=posix.EX_SOFTWARE, msg=None):
+    def __init__(self, rc=posix.EX_SOFTWARE, msg=None, tbFlag=True):
         super(ReclassException, self).__init__()
         self._rc = rc
         self._msg = msg
-        self._traceback = traceback.format_exc()
+        if tbFlag:
+            self._traceback = traceback.format_exc()
+        else:
+            self._traceback = None
+        self._full_traceback = False
 
     message = property(lambda self: self._get_message())
     rc = property(lambda self: self._rc)
+
+    def __str__(self):
+        return self.message + '\n' + super(ReclassException, self).__str__()
 
     def _get_message(self):
         if self._msg:
@@ -30,9 +42,14 @@ class ReclassException(Exception):
             return 'No error message provided.'
 
     def exit_with_message(self, out=sys.stderr):
-        print >>out, self.message
+        if self._full_traceback:
+            t, v, tb = sys.exc_info()
+            print('Full Traceback', file=out)
+            for l in traceback.format_tb(tb):
+                print(l, file=out)
         if self._traceback:
-            print >>out, self._traceback
+            print(self._traceback, file=out)
+        print(self.message, file=out)
         sys.exit(self.rc)
 
 
@@ -89,83 +106,214 @@ class NodeNotFound(NotFoundError):
 
     def __init__(self, storage, nodename, uri):
         super(NodeNotFound, self).__init__(msg=None)
-        self._storage = storage
-        self._name = nodename
-        self._uri = uri
+        self.storage = storage
+        self.name = nodename
+        self.uri = uri
 
     def _get_message(self):
         msg = "Node '{0}' not found under {1}://{2}"
-        return msg.format(self._name, self._storage, self._uri)
-
-
-class ClassNotFound(NotFoundError):
-
-    def __init__(self, storage, classname, uri, nodename=None):
-        super(ClassNotFound, self).__init__(msg=None)
-        self._storage = storage
-        self._name = classname
-        self._uri = uri
-        self._nodename = nodename
-
-    def _get_message(self):
-        if self._nodename:
-            msg = "Class '{0}' (in ancestry of node '{1}') not found " \
-                  "under {2}://{3}"
-        else:
-            msg = "Class '{0}' not found under {2}://{3}"
-        return msg.format(self._name, self._nodename, self._storage, self._uri)
-
-    def set_nodename(self, nodename):
-        self._nodename = nodename
+        return msg.format(self.name, self.storage, self.uri)
 
 
 class InterpolationError(ReclassException):
 
-    def __init__(self, msg, rc=posix.EX_DATAERR):
-        super(InterpolationError, self).__init__(rc=rc, msg=msg)
-
-
-class UndefinedVariableError(InterpolationError):
-
-    def __init__(self, var, context=None):
-        super(UndefinedVariableError, self).__init__(msg=None)
-        self._var = var
-        self._context = context
-    var = property(lambda self: self._var)
-    context = property(lambda self: self._context)
+    def __init__(self, msg=None, rc=posix.EX_DATAERR, nodename='', uri=None, context=None, tbFlag=True):
+        super(InterpolationError, self).__init__(rc=rc, msg=msg, tbFlag=tbFlag)
+        self.nodename = nodename
+        self.uri = uri
+        self.context = context
 
     def _get_message(self):
-        msg = "Cannot resolve " + self._var.join(PARAMETER_INTERPOLATION_SENTINELS)
-        if self._context:
-            msg += ' in the context of %s' % self._context
+        msg = '-> {0}\n'.format(self.nodename)
+        msg += self._render_error_message(self._get_error_message(), 1)
+        msg = msg[:-1]
         return msg
 
-    def set_context(self, context):
-        self._context = context
+    def _render_error_message(self, message_list, indent):
+        msg = ''
+        for l in message_list:
+            if isinstance(l, list):
+                msg += self._render_error_message(l, indent + 1)
+            else:
+                msg += (' ' * indent * 3) + l + '\n'
+        return msg
+
+    def _add_context_and_uri(self):
+        msg = ''
+        if self.context:
+            msg += ', at %s' % str(self.context)
+        if self.uri:
+            msg += ', in %s' % self.uri
+        return msg
 
 
-class IncompleteInterpolationError(InterpolationError):
+class ClassNotFound(InterpolationError):
 
-    def __init__(self, string, end_sentinel):
-        super(IncompleteInterpolationError, self).__init__(msg=None)
-        self._ref = string.join(PARAMETER_INTERPOLATION_SENTINELS)
-        self._end_sentinel = end_sentinel
+    def __init__(self, storage, classname, path, nodename='', uri=None):
+        super(ClassNotFound, self).__init__(msg=None, uri=uri, nodename=nodename)
+        self.storage = storage
+        self.name = classname
+        self.path = path
 
-    def _get_message(self):
-        msg = "Missing '{0}' to end reference: {1}"
-        return msg.format(self._end_sentinel, self._ref)
+    def _get_error_message(self):
+        msg = [ 'In {0}'.format(self.uri),
+                'Class {0} not found under {1}://{2}'.format(self.name, self.storage, self.path) ]
+        return msg
+
+
+class ClassNameResolveError(InterpolationError):
+    def __init__(self, classname, nodename, uri):
+        super(ClassNameResolveError, self).__init__(msg=None, uri=uri, nodename=nodename)
+        self.name = classname
+
+    def _get_error_message(self):
+        msg = [ 'In {0}'.format(self.uri),
+                'Class name {0} not resolvable'.format(self.name) ]
+        return msg
+
+
+class InvQueryClassNotFound(InterpolationError):
+
+    def __init__(self, classNotFoundError, nodename=''):
+        super(InvQueryClassNotFound, self).__init__(msg=None, nodename=nodename)
+        self.classNotFoundError = classNotFoundError
+        self._traceback = self.classNotFoundError._traceback
+
+    def _get_error_message(self):
+        msg = [ 'Inventory Queries:',
+                '-> {0}'.format(self.classNotFoundError.nodename) ]
+        msg.append(self.classNotFoundError._get_error_message())
+        return msg
+
+
+class InvQueryClassNameResolveError(InterpolationError):
+    def __init__(self, classNameResolveError, nodename=''):
+        super(InvQueryClassNameResolveError, self).__init__(msg=None, nodename=nodename)
+        self.classNameResolveError = classNameResolveError
+        self._traceback = self.classNameResolveError._traceback
+
+    def _get_error_message(self):
+        msg = [ 'Inventory Queries:',
+                '-> {0}'.format(self.classNameResolveError.nodename) ]
+        msg.append(self.classNameResolveError._get_error_message())
+        return msg
+
+
+class ResolveError(InterpolationError):
+
+    def __init__(self, reference, uri=None, context=None):
+        super(ResolveError, self).__init__(msg=None)
+        self.reference = reference
+
+    def _get_error_message(self):
+        msg = 'Cannot resolve {0}'.format(self.reference.join(REFERENCE_SENTINELS)) + self._add_context_and_uri()
+        return [ msg ]
+
+
+class ResolveErrorList(InterpolationError):
+    def __init__(self):
+        super(ResolveErrorList, self).__init__(msg=None)
+        self.resolve_errors = []
+        self._traceback = False
+
+    def add(self, resolve_error):
+        self.resolve_errors.append(resolve_error)
+
+    def have_errors(self):
+        return len(self.resolve_errors) > 0
+
+    def _get_error_message(self):
+        msgs = []
+        for e in self.resolve_errors:
+            msgs.extend(e._get_error_message())
+        return msgs
+
+
+class InvQueryError(InterpolationError):
+
+    def __init__(self, query, resolveError, uri=None, context=None):
+        super(InvQueryError, self).__init__(msg=None)
+        self.query = query
+        self.resolveError = resolveError
+        self._traceback = self.resolveError._traceback
+
+    def _get_error_message(self):
+        msg1 = 'Failed inv query {0}'.format(self.query.join(EXPORT_SENTINELS)) + self._add_context_and_uri()
+        msg2 = '-> {0}'.format(self.resolveError.nodename)
+        msg3 = self.resolveError._get_error_message()
+        return [ msg1, msg2, msg3 ]
+
+
+class ParseError(InterpolationError):
+
+    def __init__(self, msg, line, col, lineno, rc=posix.EX_DATAERR):
+        super(ParseError, self).__init__(rc=rc, msg=None)
+        self._err = msg
+        self._line = line
+        self._col = col
+        self._lineno = lineno
+
+    def _get_error_message(self):
+        msg = [ 'Parse error: {0}'.format(self._line.join(EXPORT_SENTINELS)) + self._add_context_and_uri() ]
+        msg.append('{0} at char {1}'.format(self._err, self._col - 1))
+        return msg
 
 
 class InfiniteRecursionError(InterpolationError):
 
-    def __init__(self, path, ref):
-        super(InfiniteRecursionError, self).__init__(msg=None)
-        self._path = path
-        self._ref = ref.join(PARAMETER_INTERPOLATION_SENTINELS)
+    def __init__(self, context, ref, uri):
+        super(InfiniteRecursionError, self).__init__(msg=None, tbFlag=False, uri=uri)
+        self.context = context
+        self.ref = ref
 
-    def _get_message(self):
-        msg = "Infinite recursion while resolving {0} at {1}"
-        return msg.format(self._ref, self._path)
+    def _get_error_message(self):
+        msg = [ 'Infinite recursion: {0}'.format(self.ref.join(REFERENCE_SENTINELS)) + self._add_context_and_uri() ]
+        return msg
+
+
+class BadReferencesError(InterpolationError):
+
+    def __init__(self, refs, context, uri):
+        super(BadReferencesError, self).__init__(msg=None, context=context, uri=uri, tbFlag=False)
+        self.refs = [ r.join(REFERENCE_SENTINELS) for r in refs ]
+
+    def _get_error_message(self):
+        msg = [ 'Bad references' + self._add_context_and_uri(),
+                '   ' + ', '.join(self.refs) ]
+        return msg
+
+
+class TypeMergeError(InterpolationError):
+
+    def __init__(self, value1, value2, uri):
+        super(TypeMergeError, self).__init__(msg=None, uri=uri, tbFlag=False)
+        self.type1 = value1.item_type_str()
+        self.type2 = value2.item_type_str()
+
+    def _get_error_message(self):
+        msg = [ 'Cannot merge {0} over {1}'.format(self.type1, self.type2) + self._add_context_and_uri() ]
+        return msg
+
+
+class ExpressionError(InterpolationError):
+
+    def __init__(self, msg, rc=posix.EX_DATAERR, tbFlag=True):
+        super(ExpressionError, self).__init__(rc=rc, msg=None, tbFlag=tbFlag)
+        self._error_msg = msg
+
+    def _get_error_message(self):
+        msg = [ 'Expression error: {0}'.format(self._error_msg) + self._add_context_and_uri() ]
+        return msg
+
+
+class ChangedConstantError(InterpolationError):
+
+    def __init__(self, uri):
+        super(ChangedConstantError, self).__init__(msg=None, uri=uri, tbFlag=False)
+
+    def _get_error_message(self):
+        msg = [ 'Attempt to change constant value' + self._add_context_and_uri() ]
+        return msg
 
 
 class MappingError(ReclassException):
@@ -182,7 +330,7 @@ class MappingFormatError(MappingError):
 
 class NameError(ReclassException):
 
-    def __init__(self, msg, rc=posix.EX_DATAERR):
+    def __init__(self, msg=None, rc=posix.EX_DATAERR):
         super(NameError, self).__init__(rc=rc, msg=msg)
 
 
@@ -211,3 +359,10 @@ class DuplicateNodeNameError(NameError):
               "definition in '{3}'. Nodes can only be defined once " \
               "per inventory."
         return msg.format(self._storage, self._name, self._uris[1], self._uris[0])
+
+
+class MissingModuleError(ReclassException):
+
+    def __init__(self, modname):
+        msg = "Module %s is missing" % modname
+        super(MissingModuleError, self).__init__(rc=posix.EX_DATAERR, msg=msg)

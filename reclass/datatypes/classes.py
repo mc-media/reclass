@@ -6,12 +6,17 @@
 # Copyright © 2007–14 martin f. krafft <madduck@madduck.net>
 # Released under the terms of the Artistic Licence 2.0
 #
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
-import types
+import six
 import os
 from reclass.errors import InvalidClassnameError
 
 INVALID_CHARACTERS_FOR_CLASSNAMES = ' ' + os.sep
+
 
 class Classes(object):
     '''
@@ -51,8 +56,8 @@ class Classes(object):
             self.append_if_new(i)
 
     def _assert_is_string(self, item):
-        if not isinstance(item, types.StringTypes):
-            raise TypeError('%s instances can only contain strings, '\
+        if not isinstance(item, six.string_types):
+            raise TypeError('%s instances can only contain strings, '
                             'not %s' % (self.__class__.__name__, type(item)))
 
     def _assert_valid_characters(self, item):
@@ -70,5 +75,4 @@ class Classes(object):
         self._append_if_new(item)
 
     def __repr__(self):
-        return '%s(%r)' % (self.__class__.__name__,
-                           self._items)
+        return '%s(%r)' % (self.__class__.__name__, self._items)

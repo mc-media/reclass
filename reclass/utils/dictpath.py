@@ -6,8 +6,13 @@
 # Copyright © 2007–14 martin f. krafft <madduck@madduck.net>
 # Released under the terms of the Artistic Licence 2.0
 #
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
-import types, re
+import six
+import re
 
 class DictPath(object):
     '''
@@ -56,17 +61,17 @@ class DictPath(object):
 
     def __init__(self, delim, contents=None):
         self._delim = delim
+
         if contents is None:
             self._parts = []
+        elif isinstance(contents, list):
+            self._parts = contents
+        elif isinstance(contents, six.string_types):
+            self._parts = self._split_string(contents)
+        elif isinstance(contents, tuple):
+            self._parts = list(contents)
         else:
-            if isinstance(contents, types.StringTypes):
-                self._parts = self._split_string(contents)
-            elif isinstance(contents, tuple):
-                self._parts = list(contents)
-            elif isinstance(contents, list):
-                self._parts = contents
-            else:
-                raise TypeError('DictPath() takes string or list, '\
+            raise TypeError('DictPath() takes string or list, '\
                                 'not %s' % type(contents))
 
     def __repr__(self):
@@ -76,11 +81,12 @@ class DictPath(object):
         return self._delim.join(str(i) for i in self._parts)
 
     def __eq__(self, other):
-        if isinstance(other, types.StringTypes):
+        if not (isinstance(other, six.string_types) or
+                isinstance(other, self.__class__)):
+            return False
+        if isinstance(other, six.string_types):
             other = DictPath(self._delim, other)
-
-        return self._parts == other._parts \
-                and self._delim == other._delim
+        return self._parts == other._parts and self._delim == other._delim
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -88,9 +94,9 @@ class DictPath(object):
     def __hash__(self):
         return hash(str(self))
 
-    def _get_path(self):
+    @property
+    def path(self):
         return self._parts
-    path = property(_get_path)
 
     def _get_key(self):
         if len(self._parts) == 0:
@@ -109,17 +115,55 @@ class DictPath(object):
     def _split_string(self, string):
         return re.split(r'(?<!\\)' + re.escape(self._delim), string)
 
-    def _escape_string(self, string):
-        return string.replace(self._delim, '\\' + self._delim)
+    def key_parts(self):
+        return self._parts[:-1]
 
     def new_subpath(self, key):
-        try:
-            return DictPath(self._delim, self._parts + [self._escape_string(key)])
-        except AttributeError as e:
-            return DictPath(self._delim, self._parts + [key])
+        return DictPath(self._delim, self._parts + [key])
 
     def get_value(self, base):
         return self._get_innermost_container(base)[self._get_key()]
 
     def set_value(self, base, value):
         self._get_innermost_container(base)[self._get_key()] = value
+
+    def drop_first(self):
+        del self._parts[0]
+        return self
+
+    def is_empty(self):
+        return len(self._parts) == 0
+
+    def delete(self, base):
+        del self._get_innermost_container(base)[self._get_key()]
+
+    def add_subpath(self, key):
+        self._parts.append(key)
+
+    def add_ancestor(self, key):
+        self._parts.insert(0, key)
+
+    def is_ancestor_of(self, other):
+        if len(other._parts) <= len(self._parts):
+            return False
+        for i in range(len(self._parts)):
+            if other._parts[i] != self._parts[i]:
+                return False
+        return True
+
+    def exists_in(self, container):
+        item = container
+        for part in self._parts:
+            if isinstance(item, (dict, list)):
+                if part in item:
+                    if isinstance(item, dict):
+                        item = item[part]
+                    elif isinstance(container, list):
+                        item = item[int(part)]
+                else:
+                    return False
+            else:
+                if item == self._parts[-1]:
+                    return True
+                return False
+        return True

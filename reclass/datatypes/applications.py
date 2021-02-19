@@ -6,8 +6,13 @@
 # Copyright © 2007–14 martin f. krafft <madduck@madduck.net>
 # Released under the terms of the Artistic Licence 2.0
 #
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
-from classes import Classes
+
+from .classes import Classes
 
 class Applications(Classes):
     '''
@@ -23,18 +28,14 @@ class Applications(Classes):
 
     def __init__(self, iterable=None,
                  negation_prefix=DEFAULT_NEGATION_PREFIX):
-        self._negation_prefix = negation_prefix
+        self.negation_prefix = negation_prefix
         self._offset = len(negation_prefix)
         self._negations = []
         super(Applications, self).__init__(iterable)
 
-    def _get_negation_prefix(self):
-        return self._negation_prefix
-    negation_prefix = property(_get_negation_prefix)
-
     def append_if_new(self, item):
         self._assert_is_string(item)
-        if item.startswith(self._negation_prefix):
+        if item.startswith(self.negation_prefix):
             item = item[self._offset:]
             self._negations.append(item)
             try:
@@ -60,6 +61,6 @@ class Applications(Classes):
 
     def __repr__(self):
         contents = self._items + \
-                ['%s%s' % (self._negation_prefix, i) for i in self._negations]
+                ['%s%s' % (self.negation_prefix, i) for i in self._negations]
         return "%s(%r, %r)" % (self.__class__.__name__, contents,
-                               self._negation_prefix)
+                               str(self.negation_prefix))

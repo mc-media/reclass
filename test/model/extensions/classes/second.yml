@@ -1,0 +1,9 @@
+classes:
+- first
+- relative
+
+parameters:
+  will:
+    warn:
+      at:
+        second: ${_param:notfound}

@@ -6,9 +6,15 @@
 # Copyright © 2007–14 martin f. krafft <madduck@madduck.net>
 # Released under the terms of the Artistic Licence 2.0
 #
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
 from reclass.datatypes import Classes
 from reclass.datatypes.classes import INVALID_CHARACTERS_FOR_CLASSNAMES
 import unittest
+
 try:
     import unittest.mock as mock
 except ImportError:
@@ -72,8 +78,9 @@ class TestClasses(unittest.TestCase):
     def test_append_invalid_characters(self):
         c = Classes()
         invalid_name = ' '.join(('foo', 'bar'))
-        with self.assertRaises(InvalidClassnameError):
+        with self.assertRaises(InvalidClassnameError) as e:
             c.append_if_new(invalid_name)
+        self.assertEqual(e.exception.message, "Invalid character ' ' in class name 'foo bar'.")
 
     def test_merge_unique(self):
         c = Classes(TESTLIST1)

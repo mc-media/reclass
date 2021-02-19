@@ -6,6 +6,10 @@
 # Copyright © 2007–13 martin f. krafft <madduck@madduck.net>
 # Released under the terms of the Artistic Licence 2.0
 #
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 
 from reclass.version import *
 from setuptools import setup, find_packages
@@ -38,7 +42,7 @@ setup(
     url = URL,
     packages = find_packages(exclude=['*tests']), #FIXME validate this
     entry_points = { 'console_scripts': console_scripts },
-    install_requires = ['pyyaml'],
+    install_requires = ['pyparsing', 'pyyaml', 'six', 'enum34', 'ddt'], #FIXME pygit2 (require libffi-dev, libgit2-dev 0.26.x )
 
     classifiers=[
         'Development Status :: 4 - Beta',
