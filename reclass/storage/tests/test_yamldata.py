@@ -85,5 +85,20 @@ class TestYamlData(unittest.TestCase):
         self.assertTrue(rendered['secret'].startswith('$ANSIBLE_VAULT'))
 
 
+    def test_vault_tagged_scalar_is_redacted(self):
+        # This is the form "ansible-vault encrypt_string" produces. A plain
+        # SafeLoader refuses the !vault tag outright.
+        from reclass.settings import Settings
+        lines = [ 'parameters:',
+                  '  secret: !vault |',
+                  '    $ANSIBLE_VAULT;1.1;AES256',
+                  '    3131313131313131313131313131313131313131' ]
+        y = YamlData.from_string('\n'.join(lines), 'testpath')
+        entity = y.get_entity('testnode', 'testnode', Settings())
+        entity.interpolate(None)
+        self.assertEqual(
+            entity.parameters.as_dict()['secret'].strip(), '***VAULTED***')
+
+
 if __name__ == '__main__':
     unittest.main()

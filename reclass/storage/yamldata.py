@@ -17,7 +17,8 @@ import os
 from reclass.errors import NotFoundError
 from reclass import vault
 
-_SafeLoader = yaml.CSafeLoader if yaml.__with_libyaml__ else yaml.SafeLoader
+_SafeLoader = vault.vault_aware_loader(
+    yaml.CSafeLoader if yaml.__with_libyaml__ else yaml.SafeLoader)
 
 class YamlData(object):
 

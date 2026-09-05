@@ -54,6 +54,25 @@ _vault_lib = None
 _cache = {}
 
 
+def _construct_vault_tag(loader, node):
+    # "ansible-vault encrypt_string" tags its output with !vault, which a
+    # SafeLoader refuses to construct. The tag carries nothing reclass needs:
+    # the payload is the vault envelope itself, which is_vaulted() recognises
+    # on its own. So unwrap it to the plain scalar.
+    return loader.construct_scalar(node)
+
+
+def vault_aware_loader(base):
+    '''Return a subclass of base that accepts ansible's !vault tag.
+
+    A subclass rather than a mutation of base, so that other users of the
+    same loader class in the process are left alone.
+    '''
+    loader = type(str('VaultSafeLoader'), (base,), {})
+    loader.add_constructor('!vault', _construct_vault_tag)
+    return loader
+
+
 def is_vaulted(value):
     return (isinstance(value, string_types)
             and value.lstrip().startswith(VAULT_HEADER))
