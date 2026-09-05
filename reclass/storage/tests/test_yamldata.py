@@ -56,8 +56,8 @@ class TestYamlData(unittest.TestCase):
         self.assertEqual(rendered['plain'], 'keepme')
 
     def test_reference_to_vault_value_is_redacted(self):
-        # This is the pattern used in the mcm-doc-website inventory: a secret
-        # is interpolated into the middle of a larger config string.
+        # A secret interpolated into the middle of a larger config string:
+        # the reference must resolve to the processed value, not the blob.
         from reclass.settings import Settings
         lines = [ 'parameters:',
                   '  secret: |',
