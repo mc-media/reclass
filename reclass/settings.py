@@ -37,6 +37,7 @@ class Settings(object):
         'ignore_class_notfound': defaults.OPT_IGNORE_CLASS_NOTFOUND,
         'strict_constant_parameters':
             defaults.OPT_STRICT_CONSTANT_PARAMETERS,
+        'vault_mode': defaults.OPT_VAULT_MODE,
         'ignore_class_notfound_regexp':
             defaults.OPT_IGNORE_CLASS_NOTFOUND_REGEXP,
         'ignore_class_notfound_warning':

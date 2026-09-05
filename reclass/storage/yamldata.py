@@ -15,6 +15,7 @@ from reclass import datatypes
 import yaml
 import os
 from reclass.errors import NotFoundError
+from reclass import vault
 
 _SafeLoader = yaml.CSafeLoader if yaml.__with_libyaml__ else yaml.SafeLoader
 
@@ -95,11 +96,13 @@ class YamlData(object):
         parameters = self._data.get('parameters')
         if parameters is None:
             parameters = {}
+        parameters = vault.apply_mode(parameters, settings.vault_mode)
         parameters = datatypes.Parameters(parameters, settings, self._uri)
 
         exports = self._data.get('exports')
         if exports is None:
             exports = {}
+        exports = vault.apply_mode(exports, settings.vault_mode)
         exports = datatypes.Exports(exports, settings, self._uri)
 
         env = self._data.get('environment', None)

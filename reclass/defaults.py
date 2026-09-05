@@ -41,6 +41,13 @@ OPT_ALLOW_NONE_OVERRIDE = False
 OPT_INVENTORY_IGNORE_FAILED_NODE = False
 OPT_INVENTORY_IGNORE_FAILED_RENDER = False
 
+# How to treat ansible-vault encrypted values found in the inventory:
+# 'redact'  - replace them with a placeholder (safe default: a consumer that
+#             has not explicitly opted in cannot leak a secret)
+# 'decrypt' - decrypt them, requires ansible and ANSIBLE_VAULT_PASSWORD_FILE
+# 'keep'    - leave the ciphertext untouched
+OPT_VAULT_MODE = 'redact'
+
 CONFIG_FILE_SEARCH_PATH = [os.getcwd(),
                            os.path.expanduser('~'),
                            OPT_INVENTORY_BASE_URI,

@@ -129,3 +129,17 @@ class TestValue(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestValueVaulted(unittest.TestCase):
+
+    def test_vaulted_string_is_not_parsed_for_references(self):
+        from reclass.vault import VaultedString
+        value = Value(VaultedString('pass${favcolour}word'), SETTINGS, 'test')
+        self.assertFalse(value.has_references)
+        self.assertEqual(value.render(CONTEXT, None), 'pass${favcolour}word')
+
+    def test_vaulted_string_with_escape_character_is_literal(self):
+        from reclass.vault import VaultedString
+        value = Value(VaultedString('back\\slash'), SETTINGS, 'test')
+        self.assertEqual(value.render(CONTEXT, None), 'back\\slash')
