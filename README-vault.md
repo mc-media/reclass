@@ -42,14 +42,26 @@ inventory without holding the vault password.
 
 ## Password
 
-In `decrypt` mode the password is read from the file named by the
-`ANSIBLE_VAULT_PASSWORD_FILE` environment variable — the same variable
-ansible itself uses. Trailing whitespace is stripped.
+In `decrypt` mode reclass looks for a vault password file in two places, in
+order:
 
-If the variable is unset, the file is unreadable or empty, or the password
-is wrong, reclass fails with an error. It does **not** silently fall back to
-emitting the ciphertext: that would deploy an encrypted blob as a
-configuration value without any warning.
+1. the `ANSIBLE_VAULT_PASSWORD_FILE` environment variable;
+2. `vault_password_file` in `ansible.cfg`, read through ansible's own
+   configuration machinery.
+
+Both a plain password file and an executable that prints the password are
+accepted — the lookup goes through ansible's `get_file_vault_secret`, so it
+behaves exactly as it does for ansible itself.
+
+`--vault-password-file`, `--vault-id` and `ANSIBLE_VAULT_IDENTITY_LIST` are
+**not** reachable: ansible does not pass them down to an external inventory
+script, so there is nothing for reclass to read. Use the environment
+variable or `ansible.cfg`.
+
+If no password file is configured, or it is missing, empty or wrong, reclass
+fails with an error naming the offending key and the file it came from. It
+does **not** silently fall back to emitting the ciphertext: that would
+deploy an encrypted blob as a configuration value without any warning.
 
 ## Notes
 
@@ -67,4 +79,6 @@ configuration value without any warning.
 - Anything reclass emits in `decrypt` mode is plaintext. An external
   inventory script talks JSON, so there is no way to hand ansible a value
   that stays encrypted in memory. Treat `reclass --inventory` output, and
-  any log capturing it, as secret material.
+  any log capturing it, as secret material. Note in particular that these
+  values arrive as ordinary strings, so ansible's own masking of
+  vault-sourced data does not apply to them.

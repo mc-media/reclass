@@ -97,13 +97,13 @@ class YamlData(object):
         parameters = self._data.get('parameters')
         if parameters is None:
             parameters = {}
-        parameters = vault.apply_mode(parameters, settings.vault_mode)
+        parameters = vault.apply_mode(parameters, settings.vault_mode, self._uri)
         parameters = datatypes.Parameters(parameters, settings, self._uri)
 
         exports = self._data.get('exports')
         if exports is None:
             exports = {}
-        exports = vault.apply_mode(exports, settings.vault_mode)
+        exports = vault.apply_mode(exports, settings.vault_mode, self._uri)
         exports = datatypes.Exports(exports, settings, self._uri)
 
         env = self._data.get('environment', None)

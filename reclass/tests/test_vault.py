@@ -110,8 +110,65 @@ class TestVaultDecrypt(unittest.TestCase):
     def test_missing_password_file_raises(self):
         os.environ.pop('ANSIBLE_VAULT_PASSWORD_FILE', None)
         vault._vault_lib = None
+        if vault._password_file():
+            self.skipTest('ansible.cfg configures a vault password file')
         self.assertRaises(vault.VaultError, vault.apply_mode,
                           {'a': self.ciphertext}, vault.MODE_DECRYPT)
+
+    def test_executable_password_file(self):
+        import stat
+        script = self.pwfile + '.sh'
+        with open(script, 'w') as fp:
+            fp.write('#!/bin/sh\necho testpassword\n')
+        os.chmod(script, os.stat(script).st_mode | stat.S_IEXEC)
+        os.environ['ANSIBLE_VAULT_PASSWORD_FILE'] = script
+        vault._vault_lib = None
+        vault._cache = {}
+        try:
+            out = vault.apply_mode({'a': self.ciphertext}, vault.MODE_DECRYPT)
+            self.assertEqual(str(out['a']), self.plaintext)
+        finally:
+            os.unlink(script)
+
+    def test_non_utf8_secret_raises_vault_error(self):
+        from ansible.parsing.vault import VaultLib, VaultSecret
+        lib = VaultLib([('default', VaultSecret(b'testpassword'))])
+        blob = lib.encrypt(b'\xff\xfe not utf-8').decode('utf-8')
+        self.assertRaises(vault.VaultError, vault.apply_mode,
+                          {'a': blob}, vault.MODE_DECRYPT)
+
+    def test_error_names_the_offending_key_and_uri(self):
+        with open(self.pwfile, 'w') as fp:
+            fp.write('wrongpassword\n')
+        vault._vault_lib = None
+        vault._cache = {}
+        try:
+            vault.apply_mode({'outer': {'inner': self.ciphertext}},
+                             vault.MODE_DECRYPT, 'yaml_fs:///nodes/n1.yml')
+        except vault.VaultError as e:
+            self.assertIn('outer:inner', str(e))
+            self.assertIn('yaml_fs:///nodes/n1.yml', str(e))
+        else:
+            self.fail('VaultError not raised')
+
+    def test_error_carries_no_unrelated_traceback(self):
+        # ReclassException captures the exception currently being handled;
+        # a VaultError raised while another one is in flight must not drag
+        # that one into its message.
+        with open(self.pwfile, 'w') as fp:
+            fp.write('wrongpassword\n')
+        vault._vault_lib = None
+        vault._cache = {}
+        try:
+            {}['unrelated-key']
+        except KeyError:
+            try:
+                vault.apply_mode({'a': self.ciphertext}, vault.MODE_DECRYPT)
+            except vault.VaultError as e:
+                self.assertNotIn('Traceback', str(e))
+                self.assertNotIn('unrelated-key', str(e))
+                return
+        self.fail('VaultError not raised')
 
     def test_wrong_password_raises_without_leaking(self):
         with open(self.pwfile, 'w') as fp:

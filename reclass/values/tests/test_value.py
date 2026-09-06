@@ -127,9 +127,6 @@ class TestValue(unittest.TestCase):
         with self.assertRaises(ParseError):
             tv = Value(s, SETTINGS, '')
 
-if __name__ == '__main__':
-    unittest.main()
-
 
 class TestValueVaulted(unittest.TestCase):
 
@@ -143,3 +140,7 @@ class TestValueVaulted(unittest.TestCase):
         from reclass.vault import VaultedString
         value = Value(VaultedString('back\\slash'), SETTINGS, 'test')
         self.assertEqual(value.render(CONTEXT, None), 'back\\slash')
+
+
+if __name__ == '__main__':
+    unittest.main()
