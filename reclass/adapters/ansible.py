@@ -41,7 +41,8 @@ def cli():
                     'no_refs' : False,
                     'pretty_print' : True,
                     'output' : 'json',
-                    'applications_postfix': '_hosts'
+                    'applications_postfix': '_hosts',
+                    'vault_mode': 'decrypt'
                    }
         defaults.update(find_and_read_configfile())
 

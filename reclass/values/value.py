@@ -13,6 +13,7 @@ from .dictitem import DictItem
 from .listitem import ListItem
 from .scaitem import ScaItem
 from reclass.errors import InterpolationError
+from reclass.vault import VaultedString
 
 from six import string_types
 
@@ -25,7 +26,13 @@ class Value(object):
         self.uri = uri
         self.overwrite = False
         self.constant = False
-        if isinstance(value, string_types):
+        if isinstance(value, VaultedString):
+            # Never parse a vault-derived value: the plaintext may contain
+            # reference sentinels or the escape character, which must be
+            # taken literally. str() drops the marker here, so it never
+            # reaches the merge machinery or the output.
+            self._item = ScaItem(str(value), self._settings)
+        elif isinstance(value, string_types):
             if parse_string:
                 try:
                     self._item = self._parser.parse(value, self._settings)

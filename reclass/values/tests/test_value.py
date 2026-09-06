@@ -41,7 +41,7 @@ class TestValue(unittest.TestCase):
         s = 'my cat likes to hide in boxes'
         tv = Value(s, SETTINGS, '')
         self.assertFalse(tv.has_references)
-        self.assertEquals(tv.render(CONTEXT, None), s)
+        self.assertEqual(tv.render(CONTEXT, None), s)
 
     def _test_solo_ref(self, key):
         s = _var(key)
@@ -126,6 +126,21 @@ class TestValue(unittest.TestCase):
         s = SETTINGS.reference_sentinels[0] + 'incomplete'
         with self.assertRaises(ParseError):
             tv = Value(s, SETTINGS, '')
+
+
+class TestValueVaulted(unittest.TestCase):
+
+    def test_vaulted_string_is_not_parsed_for_references(self):
+        from reclass.vault import VaultedString
+        value = Value(VaultedString('pass${favcolour}word'), SETTINGS, 'test')
+        self.assertFalse(value.has_references)
+        self.assertEqual(value.render(CONTEXT, None), 'pass${favcolour}word')
+
+    def test_vaulted_string_with_escape_character_is_literal(self):
+        from reclass.vault import VaultedString
+        value = Value(VaultedString('back\\slash'), SETTINGS, 'test')
+        self.assertEqual(value.render(CONTEXT, None), 'back\\slash')
+
 
 if __name__ == '__main__':
     unittest.main()
